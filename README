@@ -1,0 +1,54 @@
+// Nicula Dan Alexandru - 332CA
+// Tema 2 APD - BitTorrent Protocol
+
+P.S. Inainte de toate
+	Uneori mai primesc niste erori ciudate la prima rulare a checker-ului pe docker, sper ca nu se va intampla si la corectare, daca da, doar rulati
+de doua ori, ca a doua oara nu mai are erori. Nu am nicio idee ce cauzeaza asta, insa problema se rezolva de fiecare data cu o a doua (sau a treia) rulare.
+Nu am nicio idee ce poate cauza aceasta problema, si de ce e numai la primul test. (Rulat automat de 100 de ori la rand in bash, testul nu pica
+nici macar o data). Sper ca nu va fi necesara o re-rulare.
+Multumesc pentru intelegere! :)
+
+Detalii Implementare:
+    Am avut de implementat cele 2 componente principale din protocolul BitTorrent: un tracker si un peer.
+    Peer-ul este realizat in felul urmator:
+        - isi citeste fisierul de intrare (ce fisiere detine si ce fisiere vrea)
+        - transmite tracker-ului ce fisiere detine (impreuna cu hash-urile bucatilor de fisiere)
+        ! asteapta un semnal READY_TO_DOWNLOAD de la tracker
+        - dupa acest semnal, cere hash-urile si swarm-urile pentru fisierele dorite, trimitand pentru fie-
+        care fisier semnalul REQUEST_SWARM_AND_HASHES tracker-ului si numele fisierului dorit
+        => Intr-un thread de download, peer-ul obtine PE RAND fisierele pe care le doreste astfel:
+              -peer-ul parcurge secvential hash-urile si trimite request-uri pentru
+              partea de fisier cu hash-ul respectiv membrilor din swarm
+              (inainte sa ceara aceasta bucata de fisier, peer-ul isi sorteaza crescator swarm-ul dupa nr. de
+              download-uri pe care le-a facut de la fiecare peer din swarm, pentru a mentine echilibrata distributia download-urilor)
+              - dupa ce a gasit un peer care are bucata de fisier, o marcheaza ca downloadata si merge la urmatoarea bucata
+              pana termina fisierul
+              - dupa ce a terminat toate fisierele dorite, peer-ul trimite DONE_DOWNLOADING tracker-ului si inchide acest thread
+        => In thread-ul de upload, peer-ul:
+              - asteapta un mesaj cu tag-ul TAG_DOWNLOAD de la orice peer (mesajele cu acest tag sunt cereri de download SAU mesajul
+              de CLOSE_EVERYTHING de la tracker)
+              - daca mesajul este de la tracker (CLOSE_EVERYTHING), opreste thread-ul
+              - altfel: 
+                      - verifica daca are bucata de fisier cu hash-ul cerut
+                      - trimite semnalul OK_DOWNLOAD daca are bucata respectiva, sau NO_DOWNLOAD daca nu
+                      - reia asteptarea de la primul pas
+                      
+	- dupa ce ambele thread-uri (UP- si DOWNload) se inchid (se trece de join-uri) se inchide peer-ul, deoarece a downloadat tot
+	ce a vrut, la fel si restul peer-ilor.
+                      
+      Tracker-ul are urmatoarea implementare:
+        - primeste de la fiecare peer in parte numele fisierelor detinute si hash-urile acestora
+        - pe baza acestor date primite, isi realizeaza un database cu toate fisierele in circulatie si swarm-urile pentru acestea
+        - dupa ce a primit datele acestea de la fiecare peer, trimite semnalul READY_TO_DOWNLOAD peer-ilor
+        - asteapta mesaje, care pot fi:
+              - REQUEST_SWARM_AND_HASHES: peer-ul care a trimis mesajul vrea hash-urile fisierului mentionat, precum si swarm-ul sau;
+              in acest caz, tracker-ul va adauga in swarm peer-ul emitator
+              - REQUEST_SWARM: peer-ul cere doar swarm-ul, dorind doar sa updateze datele sale locale despre swarm; in acest caz, tracker-ul
+              NU va adauga peer-ul in swarm (deoarece e deja in el :))
+              - DONE_DOWNLOADING: peer-ul a terminat download-urile si isi inchide thread-ul de download; tracker-ul il marcheaza ca a terminat
+              download-urile
+        - odata ce a primit DONE_DOWNLOADING de la toti peer-ii, tracker-ul le va trimite semnalul CLOSE_EVERYTHING (deoarece toti au terminat de
+        downloadat) si se va inchide la randul sau
+        
+        
+
