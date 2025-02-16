@@ -1,4 +1,4 @@
-# BitTorrent Protocol - Tema 2 APD
+# BitTorrent Protocol
 
 **Autor:** Nicula Dan Alexandru - 332CA
 
